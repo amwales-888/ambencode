@@ -210,9 +210,9 @@ int main(int argc, char **argv) {
 		bhandle.len/bhandle.used);
 
 	if (dump) {
-	  ambencode_dump_json(&bhandle, (struct bobject *)0, 0);
+	  ambencode_dump_json(&bhandle, (struct bobject *)0, 0, (char *)0, 0);
 	} else if (pretty) {
-	  ambencode_dump_json(&bhandle, (struct bobject *)0, 1);
+	  ambencode_dump_json(&bhandle, (struct bobject *)0, 1, (char *)0, 0);
 	} else if (benchmark) {
 
 	  clock_gettime(CLOCK_MONOTONIC, &end);
@@ -222,7 +222,7 @@ int main(int argc, char **argv) {
 	} else if (query) {
 	  struct bobject *bobject = ambencode_query(&bhandle, BOBJECT_ROOT(&bhandle), query);
 	  if (bobject) {
-	    ambencode_dump(&bhandle, bobject, 1);
+	    ambencode_dump(&bhandle, bobject, 1, (char *)0, 0);
 	  } else {
 	    fprintf(stderr, "'%s' not found\n", query);
 	    return 1;

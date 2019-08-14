@@ -31,8 +31,7 @@ int main(int argc __attribute__((unused)),
 
     if (ambencode_alloc(&bhandle, (void *)0, 32) == 0) {
       if (ambencode_decode(&bhandle, ambencode[i], strlen(ambencode[i])) == 0) {
-	ambencode_dump(&bhandle, BOBJECT_ROOT(&bhandle), 1);
-	
+	ambencode_dump(&bhandle, BOBJECT_ROOT(&bhandle), 1, (char *)0, 0);	
       }
       ambencode_free(&bhandle);
     }

@@ -24,6 +24,7 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * -------------------------------------------------------------------- */
 
 #include <stdio.h>
+#include <string.h>
 
 #include "ambencode.h"
 #include "extras/ambencode_dump.h"
@@ -31,16 +32,17 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 /* -------------------------------------------------------------------- */
 /* -------------------------------------------------------------------- */
 
-static void dump_spaces(int count);
+static void dump_spaces(int count, size_t *written, char *buf, size_t len);
 static void dump_json(struct bhandle *bhandle, struct bobject *bobject,
-		      int type, int depth, int pretty);
-static void dump(struct bhandle *bhandle, struct bobject *bobject,
-		 int type, int depth, int pretty);
+		 int type, int depth, int pretty, size_t *written,
+		 char *buf, size_t len);
+static size_t cpyout(char *dst, size_t dlen, char *src, size_t slen, 
+		     size_t offset);
 
 /* -------------------------------------------------------------------- */
 /* -------------------------------------------------------------------- */
 
-#define MAX_SPACECOUNT 3
+#define MAX_SPACECOUNT 8
 
 static char *spaces[] = {
   "","  ","    ","      ","        ","          ",
@@ -49,68 +51,142 @@ static char *spaces[] = {
 
 /* -------------------------------------------------------------------- */
 /* -------------------------------------------------------------------- */
-static void dump_spaces(int depth) {
+static void dump_spaces(int depth, size_t *written, char *buf, size_t len) {
 
   if (depth == 0) return;
   
   if (depth < MAX_SPACECOUNT) {
-    printf(spaces[depth]);
+    *written += cpyout(buf, len, spaces[depth], depth*2, *written);
   } else {    
 
     for (;;) {
-
-      printf(spaces[MAX_SPACECOUNT-1]);
+      *written += cpyout(buf, len, spaces[MAX_SPACECOUNT-1], (MAX_SPACECOUNT-1)*2, *written);
       
       depth -= MAX_SPACECOUNT-1;
       if (depth < MAX_SPACECOUNT) break;     
     }
 
-    dump_spaces(depth);
+    dump_spaces(depth, written, buf, len);
+  }
+}
+
+/* -------------------------------------------------------------------- */
+/* -------------------------------------------------------------------- */
+static size_t cpyout(char *dst, size_t dlen, char *src, size_t slen, 
+		     size_t offset) {
+
+  size_t towrite   = 0;
+  size_t available = 0;
+
+  if (dst == (char *)0) return printf("%.*s", (int)slen, src);
+
+  if (offset < dlen) {
+    available = dlen - offset;
+
+    towrite = slen;
+    if (towrite > available) {
+      towrite = available;
+    }
+
+    if (towrite > 0) memcpy(&dst[offset], src, towrite);
+  }
+
+  return slen;
+}
+
+/* -------------------------------------------------------------------- */
+/* -------------------------------------------------------------------- */
+static void dump(struct bhandle *bhandle, struct bobject *bobject,
+		 int type __attribute__((unused)), 
+		 int depth, int pretty, size_t *written,
+		 char *buf, size_t len) {
+
+  while (bobject) {
+
+    switch (BOBJECT_TYPE(bobject)) {
+
+    case AMBENCODE_STRING: {
+
+      char nbuf[20];
+      size_t nlen = sprintf(nbuf, "%ld", (size_t)BOBJECT_STRING_LEN(bobject));
+
+      *written += cpyout(buf, len, nbuf, nlen, *written);
+      *written += cpyout(buf, len, ":", 1, *written);
+      *written += cpyout(buf, len, 
+			 BOBJECT_STRING_PTR(bhandle, bobject), BOBJECT_STRING_LEN(bobject), 
+			 *written);
+      break;
+    }
+    case AMBENCODE_NUMBER:
+      *written += cpyout(buf, len, "i", 1, *written);
+      *written += cpyout(buf, len, 
+			 BOBJECT_STRING_PTR(bhandle, bobject), BOBJECT_STRING_LEN(bobject), 
+			 *written);
+      *written += cpyout(buf, len, "e", 1, *written);
+      break;
+    case AMBENCODE_DICTIONARY:
+      *written += cpyout(buf, len, "d", 1, *written);
+      dump(bhandle, DICTIONARY_FIRST_KEY(bhandle, bobject), AMBENCODE_DICTIONARY, depth+1, pretty, written, buf, len);
+      *written += cpyout(buf, len, "e", 1, *written);
+      break;
+    case AMBENCODE_LIST:
+      *written += cpyout(buf, len, "l", 1, *written);
+      dump(bhandle, LIST_FIRST(bhandle, bobject), AMBENCODE_LIST, depth+1, pretty, written, buf, len);
+      *written += cpyout(buf, len, "e", 1, *written);
+      break;
+    }
+
+    if (depth == 0) {    
+      bobject = (void *)0;
+    } else {
+      bobject = BOBJECT_NEXT(bhandle,bobject);
+    }
   }
 }
 
 /* -------------------------------------------------------------------- */
 /* -------------------------------------------------------------------- */
 static void dump_json(struct bhandle *bhandle, struct bobject *bobject,
-		      int type, int depth, int pretty) {
+		 int type, int depth, int pretty, size_t *written,
+		 char *buf, size_t len) {
 
-  char *sep   = "";
-  char *nl    = "";
-  
-  if (pretty) {
-    nl = "\n";
-  }
-  
+  char *sep = "";
+    
   while (bobject) {
 
-    printf(sep);
+    *written += cpyout(buf, len, sep, strlen(sep), *written);
+
     if ((pretty) && (*sep != ':')) {
-      dump_spaces(depth);
+      dump_spaces(depth, written, buf, len);
     }
     
     switch (BOBJECT_TYPE(bobject)) {
 
     case AMBENCODE_STRING:
-      printf("\"%.*s\"", BOBJECT_STRING_LEN(bobject), BOBJECT_STRING_PTR(bhandle, bobject));
+      *written += cpyout(buf, len, 
+			 BOBJECT_STRING_PTR(bhandle, bobject), BOBJECT_STRING_LEN(bobject), 
+			 *written);
       break;
     case AMBENCODE_NUMBER:
-      printf("%.*s", BOBJECT_STRING_LEN(bobject), BOBJECT_STRING_PTR(bhandle, bobject));
+      *written += cpyout(buf, len, 
+			 BOBJECT_STRING_PTR(bhandle, bobject), BOBJECT_STRING_LEN(bobject), 
+			 *written);
       break;
     case AMBENCODE_DICTIONARY:
-      printf("{");
-      if (pretty) printf(nl);      
-      dump_json(bhandle, DICTIONARY_FIRST_KEY(bhandle, bobject), AMBENCODE_DICTIONARY, depth+1, pretty);
-      if (pretty) printf(nl);
-      if (pretty) dump_spaces(depth);
-      printf("}");
+      *written += cpyout(buf, len, "{", 1, *written);
+      if (pretty) *written += cpyout(buf, len, "\n", 1, *written);
+      dump_json(bhandle, DICTIONARY_FIRST_KEY(bhandle, bobject), AMBENCODE_DICTIONARY, depth+1, pretty, written, buf, len);
+      if (pretty) *written += cpyout(buf, len, "\n", 1, *written);
+      if (pretty) dump_spaces(depth, written, buf, len);
+      *written += cpyout(buf, len, "}", 1, *written);
       break;
     case AMBENCODE_LIST:
-      printf("[");
-      if (pretty) printf(nl);
-      dump_json(bhandle, LIST_FIRST(bhandle, bobject), AMBENCODE_LIST, depth+1, pretty);
-      printf(nl);
-      if (pretty) dump_spaces(depth);
-      printf("]");
+      *written += cpyout(buf, len, "[", 1, *written);
+      if (pretty) *written += cpyout(buf, len, "\n", 1, *written);
+      dump_json(bhandle, LIST_FIRST(bhandle, bobject), AMBENCODE_LIST, depth+1, pretty, written, buf, len);
+      if (pretty) *written += cpyout(buf, len, "\n", 1, *written);
+      if (pretty) dump_spaces(depth, written, buf, len);
+      *written += cpyout(buf, len, "]", 1, *written);
       break;
     }
 
@@ -139,59 +215,32 @@ static void dump_json(struct bhandle *bhandle, struct bobject *bobject,
 
 /* -------------------------------------------------------------------- */
 /* -------------------------------------------------------------------- */
-static void dump(struct bhandle *bhandle, struct bobject *bobject,
-		 int type __attribute__((unused)), int depth, int pretty) {
+size_t ambencode_dump_json(struct bhandle *bhandle, struct bobject *bobject, 
+		      int pretty, char *buf, size_t len) {
 
-  while (bobject) {
+  size_t written = 0;
 
-    switch (BOBJECT_TYPE(bobject)) {
+  if (!bobject) bobject = BOBJECT_ROOT(bhandle);
+  
+  dump_json(bhandle, bobject, BOBJECT_TYPE(bobject), 0, pretty, &written, buf, len);
 
-    case AMBENCODE_STRING:
-      printf("%d:%.*s", BOBJECT_STRING_LEN(bobject), BOBJECT_STRING_LEN(bobject), BOBJECT_STRING_PTR(bhandle, bobject));
-      break;
-    case AMBENCODE_NUMBER:
-      printf("i%.*se", BOBJECT_STRING_LEN(bobject), BOBJECT_STRING_PTR(bhandle, bobject));
-      break;
-    case AMBENCODE_DICTIONARY:
-      printf("d");
-      dump(bhandle, DICTIONARY_FIRST_KEY(bhandle, bobject), AMBENCODE_DICTIONARY, depth+1, pretty);
-      printf("e");
-      break;
-    case AMBENCODE_LIST:
-      printf("l");
-      dump(bhandle, LIST_FIRST(bhandle, bobject), AMBENCODE_LIST, depth+1, pretty);
-      printf("e");
-      break;
-    }
-
-    if (depth == 0) {    
-      bobject = (void *)0;
-    } else {
-      bobject = BOBJECT_NEXT(bhandle,bobject);
-    }
-  }
+  written += cpyout(buf, len, "\n", 1, written);
+  return written;
 }
 
 /* -------------------------------------------------------------------- */
 /* -------------------------------------------------------------------- */
-void ambencode_dump_json(struct bhandle *bhandle, struct bobject *bobject, int pretty) {
+size_t ambencode_dump(struct bhandle *bhandle, struct bobject *bobject, 
+		      int pretty, char *buf, size_t len) {
+
+  size_t written = 0;
 
   if (!bobject) bobject = BOBJECT_ROOT(bhandle);
   
-  dump_json(bhandle, bobject, BOBJECT_TYPE(bobject), 0, pretty);
+  dump(bhandle, bobject, BOBJECT_TYPE(bobject), 0, pretty, &written, buf, len);
 
-  printf("\n");
-}
-
-/* -------------------------------------------------------------------- */
-/* -------------------------------------------------------------------- */
-void ambencode_dump(struct bhandle *bhandle, struct bobject *bobject, int pretty) {
-
-  if (!bobject) bobject = BOBJECT_ROOT(bhandle);
-  
-  dump(bhandle, bobject, BOBJECT_TYPE(bobject), 0, pretty);
-
-  printf("\n");
+  written += cpyout(buf, len, "\n", 1, written);
+  return written;
 }
 
 /* -------------------------------------------------------------------- */

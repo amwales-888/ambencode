@@ -36,8 +36,11 @@ extern "C" {
 
 /* -------------------------------------------------------------------- */
 
-void ambencode_dump_json(struct bhandle *bhandle, struct bobject *bobject, int pretty);
-void ambencode_dump(struct bhandle *bhandle, struct bobject *bobject, int pretty);
+size_t ambencode_dump(struct bhandle *bhandle, struct bobject *bobject, 
+		      int pretty, char *buf, size_t len);
+
+size_t ambencode_dump_json(struct bhandle *bhandle, struct bobject *bobject, 
+			   int pretty, char *buf, size_t len);
 
 /* -------------------------------------------------------------------- */
 /* -------------------------------------------------------------------- */

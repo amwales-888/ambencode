@@ -32,12 +32,12 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 /* -------------------------------------------------------------------- */
 /* -------------------------------------------------------------------- */
 
-int ambencode_document(struct bhandle * const bhandle, char **optr);
-int ambencode_dictionary(struct bhandle * const bhandle, char **optr);
-int ambencode_list(struct bhandle * const bhandle, char **optr);
-int ambencode_value(struct bhandle * const bhandle, char **optr);
-int ambencode_string(struct bhandle * const bhandle, char **optr);
-int ambencode_number(struct bhandle * const bhandle, char **optr);
+static void ambencode_document(struct bhandle * const bhandle, char **optr);
+static void ambencode_dictionary(struct bhandle * const bhandle, char **optr);
+static void ambencode_list(struct bhandle * const bhandle, char **optr);
+static void ambencode_value(struct bhandle * const bhandle, char **optr);
+static void ambencode_string(struct bhandle * const bhandle, char **optr);
+static void ambencode_number(struct bhandle * const bhandle, char **optr);
 
 /* -------------------------------------------------------------------- */
 /* -------------------------------------------------------------------- */
@@ -83,28 +83,32 @@ int ambencode_decode(struct bhandle * const bhandle, char *buf, bsize_t len) {
   struct bobject *object;
   char *ptr = buf;
 
-  bhandle->buf  = buf;
-  bhandle->len  = len;
-  bhandle->eptr = &buf[len];
-  
+  bhandle->buf       = buf;
+  bhandle->len       = len;
+  bhandle->eptr      = &buf[len];
   bhandle->max_depth = AMBENCODE_MAXDEPTH;
   bhandle->depth     = 0;
+  bhandle->useljmp   = 1;
 
-  bhandle->useljmp = 1;
-  if (setjmp(bhandle->setjmp_ctx) == 1) {
+  switch (setjmp(bhandle->setjmp_ctx)) {
 
+  case 1:
     /* We returned from calling ambencode_document() with an 
      * allocation failure.
      */
     errno = ENOMEM;
     return -1;
-  }
-  
-  if (!ambencode_document(bhandle, &ptr)) {
 
+  case 2:
+
+    /* We returned from calling ambencode_document() with an 
+     * parser failure.
+     */
     errno = EINVAL;
     return -1;
   }
+  
+  ambencode_document(bhandle, &ptr);
 
   /* Our root object can be almost anything.
    */
@@ -158,7 +162,7 @@ struct bobject *bobject_allocate(struct bhandle * const bhandle, poff_t count) {
 
 /* -------------------------------------------------------------------- */
 /* -------------------------------------------------------------------- */
-int ambencode_document(struct bhandle * const bhandle, char **optr) {
+static void ambencode_document(struct bhandle * const bhandle, char **optr) {
 
   char *ptr = *optr;
   char * const eptr = bhandle->eptr;
@@ -167,22 +171,22 @@ int ambencode_document(struct bhandle * const bhandle, char **optr) {
 
   do {
 
-    if (!ambencode_value(bhandle, &ptr)) goto fail;
+    ambencode_value(bhandle, &ptr);
 
   } while (eptr != ptr);
 
   if (eptr == ptr) {
     *optr = ptr;
-    return 1;
+    return;
   }
   
  fail:
-  return 0;
+  longjmp(bhandle->setjmp_ctx, 2); /* jump back to ambencode_decode() with EINVAL */
 }
 
 /* -------------------------------------------------------------------- */
 /* -------------------------------------------------------------------- */
-int ambencode_dictionary(struct bhandle * const bhandle, char **optr) {
+static void ambencode_dictionary(struct bhandle * const bhandle, char **optr) {
 
   char *ptr = *optr;
   char * const eptr = bhandle->eptr;
@@ -213,7 +217,7 @@ int ambencode_dictionary(struct bhandle * const bhandle, char **optr) {
       goto success;
     } 
 
-    if (!ambencode_string(bhandle, &ptr)) goto fail;
+    ambencode_string(bhandle, &ptr);
 
     /* Add string to list */
     count++;
@@ -231,7 +235,7 @@ int ambencode_dictionary(struct bhandle * const bhandle, char **optr) {
         
     if (eptr == ptr) goto fail;
     
-    if (!ambencode_value(bhandle, &ptr)) goto fail;
+    ambencode_value(bhandle, &ptr);
 
     /* Add value to list */
     count++;
@@ -257,16 +261,15 @@ int ambencode_dictionary(struct bhandle * const bhandle, char **optr) {
 
   bhandle->depth--;
   *optr = ptr;
-  return 1;  
+  return;  
 
  fail:
-  bhandle->depth--;
-  return 0;
+  longjmp(bhandle->setjmp_ctx, 2); /* jump back to ambencode_decode() with EINVAL */
 }
 
 /* -------------------------------------------------------------------- */
 /* -------------------------------------------------------------------- */
-int ambencode_list(struct bhandle * const bhandle, char **optr) {
+static void ambencode_list(struct bhandle * const bhandle, char **optr) {
 
   char *ptr = *optr;
   char * const eptr = bhandle->eptr;
@@ -295,16 +298,7 @@ int ambencode_list(struct bhandle * const bhandle, char **optr) {
       goto success;
     } 
     
-    if (eptr == ptr) goto fail;
-    
-    if (!ambencode_value(bhandle, &ptr)) {
-      if (eptr == ptr) goto fail;  
-      if (*ptr == 'e') {
-	ptr++;
-	goto success;
-      }
-      goto fail;
-    }
+    ambencode_value(bhandle, &ptr);
 
     /* Add value to list */
     count++;
@@ -334,43 +328,41 @@ int ambencode_list(struct bhandle * const bhandle, char **optr) {
   array->u.object.child = first;
   
   bhandle->depth--;
-
   *optr = ptr;
-  return 1;  
+  return;  
 
  fail:
-  bhandle->depth--;
-  return 0;
+  longjmp(bhandle->setjmp_ctx, 2); /* jump back to ambencode_decode() with EINVAL */
 }
 
 /* -------------------------------------------------------------------- */
 /* -------------------------------------------------------------------- */
-int ambencode_value(struct bhandle * const bhandle, char **optr) {
+static void ambencode_value(struct bhandle * const bhandle, char **optr) {
   
   char *ptr = *optr;
 
   if ((unsigned char)(*ptr - '0') < 10) {
-    if (!ambencode_string(bhandle, &ptr)) goto fail;
+    ambencode_string(bhandle, &ptr);
   } else if (*ptr == 'i') {
-    if (!ambencode_number(bhandle, &ptr)) goto fail;
+    ambencode_number(bhandle, &ptr);
   } else if (*ptr == 'd') {
-    if (!ambencode_dictionary(bhandle, &ptr)) goto fail;
+    ambencode_dictionary(bhandle, &ptr);
   } else if (*ptr == 'l') {
-    if (!ambencode_list(bhandle, &ptr)) goto fail;
+    ambencode_list(bhandle, &ptr);
   } else {
     goto fail;
   }
   
   *optr = ptr;
-  return 1;
+  return;
 
  fail:
-  return 0;
+  longjmp(bhandle->setjmp_ctx, 2); /* jump back to ambencode_decode() with EINVAL */
 }
 
 /* -------------------------------------------------------------------- */
 /* -------------------------------------------------------------------- */
-int ambencode_string(struct bhandle * const bhandle, char **optr) {
+static void ambencode_string(struct bhandle * const bhandle, char **optr) {
 
   char *ptr = *optr;
   char * const eptr = bhandle->eptr;
@@ -432,15 +424,15 @@ int ambencode_string(struct bhandle * const bhandle, char **optr) {
   bobject->u.string.offset = (str) - bhandle->buf;
 
   *optr = ptr;
-  return 1;
+  return;
 
  fail:
-  return 0;
+  longjmp(bhandle->setjmp_ctx, 2); /* jump back to ambencode_decode() with EINVAL */
 }
 
 /* -------------------------------------------------------------------- */
 /* -------------------------------------------------------------------- */
-int ambencode_number(struct bhandle * const bhandle, char **optr) {
+static void ambencode_number(struct bhandle * const bhandle, char **optr) {
 
   char *ptr = *optr;
   char * const eptr = bhandle->eptr;
@@ -504,10 +496,10 @@ int ambencode_number(struct bhandle * const bhandle, char **optr) {
   bobject->u.string.offset = (str) - bhandle->buf;
 
   *optr = ptr;
-  return 1;  
+  return;  
 
  fail:
-  return 0;
+  longjmp(bhandle->setjmp_ctx, 2); /* jump back to ambencode_decode() with EINVAL */
 }
 
 /* -------------------------------------------------------------------- */

@@ -20,7 +20,7 @@ int main(int argc __attribute__((unused)),
       struct bobject *bobject;
      
       if ((bobject = ambencode_query(&bhandle, BOBJECT_ROOT(&bhandle), "name"))) {
-	ambencode_dump(&bhandle, bobject, 1);
+	ambencode_dump(&bhandle, bobject, 1, (char *)0, 0);
       }
     }
     ambencode_free(&bhandle);
