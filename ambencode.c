@@ -30,6 +30,16 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "ambencode.h"
 
 /* -------------------------------------------------------------------- */
+
+#ifdef USEBRANCHHINTS
+#define AM_LIKELY(x)       __builtin_expect(!!(x), 1)
+#define AM_UNLIKELY(x)     __builtin_expect(!!(x), 0)
+#else
+#define AM_LIKELY(x)       (x)
+#define AM_UNLIKELY(x)     (x)
+#endif
+
+/* -------------------------------------------------------------------- */
 /* -------------------------------------------------------------------- */
 
 static void ambencode_document(struct bhandle * const bhandle, char **optr);
@@ -124,9 +134,8 @@ struct bobject *bobject_allocate(struct bhandle * const bhandle, poff_t count) {
 
   poff_t used = bhandle->used + count;
 
-  if (used <= bhandle->used) goto error; /* overflow */
-  
-  if (used < bhandle->count) {
+  if (AM_UNLIKELY(used <= bhandle->used)) goto error; /* overflow */  
+  if (AM_LIKELY(used < bhandle->count)) {
 
     struct bobject *bobject = &bhandle->bobject[bhandle->used];
     bhandle->used = used;
@@ -139,7 +148,7 @@ struct bobject *bobject_allocate(struct bhandle * const bhandle, poff_t count) {
     void *ptr;
     poff_t ncount = (bhandle->count * 2) + count;
     
-    if (ncount <= bhandle->count) goto error; /* overflow */
+    if (AM_UNLIKELY(ncount <= bhandle->count)) goto error; /* overflow */
         
     ptr = realloc(bhandle->bobject, (ncount * sizeof(struct bobject)));	  
     if (ptr) {
@@ -197,7 +206,7 @@ static void ambencode_dictionary(struct bhandle * const bhandle, char **optr) {
 
   bhandle->depth++;
   
-  if (eptr == ptr) goto fail;
+  if (AM_UNLIKELY(eptr == ptr)) goto fail;
   if ((*ptr == 'd') &&
       (bhandle->depth < bhandle->max_depth)) {
 
@@ -211,7 +220,7 @@ static void ambencode_dictionary(struct bhandle * const bhandle, char **optr) {
 
   nextobject:
 
-    if (eptr == ptr) goto fail;  
+    if (AM_UNLIKELY(eptr == ptr)) goto fail;  
     if (*ptr == 'e') {
       ptr++;
       goto success;
@@ -233,7 +242,7 @@ static void ambencode_dictionary(struct bhandle * const bhandle, char **optr) {
     }
     /* String added */
         
-    if (eptr == ptr) goto fail;
+    if (AM_UNLIKELY(eptr == ptr)) goto fail;
     
     ambencode_value(bhandle, &ptr);
 
@@ -280,7 +289,7 @@ static void ambencode_list(struct bhandle * const bhandle, char **optr) {
 
   bhandle->depth++;
 
-  if (eptr == ptr) goto fail;  
+  if (AM_UNLIKELY(eptr == ptr)) goto fail;  
   if ((*ptr == 'l') &&
       (bhandle->depth < bhandle->max_depth)) {
 
@@ -292,7 +301,7 @@ static void ambencode_list(struct bhandle * const bhandle, char **optr) {
 
   nextvalue:
 
-    if (eptr == ptr) goto fail;  
+    if (AM_UNLIKELY(eptr == ptr)) goto fail;  
     if (*ptr == 'e') {
       ptr++;
       goto success;
@@ -371,11 +380,11 @@ static void ambencode_string(struct bhandle * const bhandle, char **optr) {
   char *str;
   size_t value = 0;
   
-  if (eptr == ptr) goto fail;
+  if (AM_UNLIKELY(eptr == ptr)) goto fail;
   if (*ptr == '0') {
     ptr++;
 
-    if (eptr == ptr) goto fail;
+    if (AM_UNLIKELY(eptr == ptr)) goto fail;
     if (*ptr == ':') {
       ptr++;
       str = ptr;
@@ -389,7 +398,7 @@ static void ambencode_string(struct bhandle * const bhandle, char **optr) {
     
   nextdigit:
     
-    if (eptr == ptr) goto fail;  
+    if (AM_UNLIKELY(eptr == ptr)) goto fail;  
     if ((unsigned char)(*ptr - '0') < 10) {
       value *= 10;
       value += (unsigned char)(*ptr - '0');
@@ -398,7 +407,7 @@ static void ambencode_string(struct bhandle * const bhandle, char **optr) {
       goto nextdigit;
     }
 
-    if (eptr == ptr) goto fail;  
+    if (AM_UNLIKELY(eptr == ptr)) goto fail;  
     if (*ptr == ':') {
       ptr++;
       str = ptr;
@@ -440,22 +449,22 @@ static void ambencode_number(struct bhandle * const bhandle, char **optr) {
   bsize_t len;
   char *str = (char *)0;
 
-  if (eptr == ptr) goto fail;
+  if (AM_UNLIKELY(eptr == ptr)) goto fail;
   if (*ptr == 'i') {
     ptr++;
 
-    if (eptr == ptr) goto fail;  
+    if (AM_UNLIKELY(eptr == ptr)) goto fail;  
     if (*ptr == '-') {
       str = ptr;
       ptr++;
     }
 
-    if (eptr == ptr) goto fail;  
+    if (AM_UNLIKELY(eptr == ptr)) goto fail;  
     if (*ptr == '0') {
       if (!str) str = ptr;
       ptr++;
 
-      if (eptr == ptr) goto fail;  
+      if (AM_UNLIKELY(eptr == ptr)) goto fail;  
       if (*ptr == 'e') {
 	ptr++;
 	goto success;
@@ -467,14 +476,14 @@ static void ambencode_number(struct bhandle * const bhandle, char **optr) {
     
     nextdigit:
     
-      if (eptr == ptr) goto fail;  
+      if (AM_UNLIKELY(eptr == ptr)) goto fail;  
       if ((unsigned char)(*ptr - '0') < 10) {
 	ptr++;
       
 	goto nextdigit;
       }
 
-      if (eptr == ptr) goto fail;  
+      if (AM_UNLIKELY(eptr == ptr)) goto fail;  
       if (*ptr == 'e') {
 	ptr++;
 	goto success;

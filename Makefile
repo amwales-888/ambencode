@@ -1,6 +1,6 @@
 ## -------------------------------------------------------------------- *
 ##
-## Copyright 2019 Angelo Masci
+## Copyright 2012 Angelo Masci
 ## 
 ## Permission is hereby granted, free of charge, to any person obtaining a
 ## copy of this software and associated documentation files (the 
@@ -24,30 +24,50 @@
 ## --------------------------------------------------------------------
 
 CC=gcc
-CFLAGS=-I. -I./extras -O3 -Wall -Wextra -pedantic-errors -fomit-frame-pointer -std=c89
-DEPS=ambencode.h
+CFLAGS=-I. -I./extras -O3 -Wall -Wextra -fomit-frame-pointer -march=native -mtune=native -std=c89
+C99CFLAGS=-I. -I./extras -O3 -Wall -Wextra -fomit-frame-pointer -march=native -mtune=native -D_GNU_SOURCE -std=c99 
 
-%.o: %.c $(DEPS)
-	$(CC) -c -o $@ $< $(CFLAGS)
+all: ambencode examples/example1 examples/example3 
 
-all: ambencode examples/example1 examples/example3
+ambencode.o: ambencode.c ambencode.h
+	$(CC) -c -o ambencode.o ambencode.c $(CFLAGS)
 
-ambencode: ambencode.o extras/ambencode_dump.o extras/ambencode_file.o extras/ambencode_main.o extras/ambencode_util.o extras/ambencode_query.o
-	$(CC) -o $@ $^ $(C99CFLAGS)
+extras/ambencode_util.o: extras/ambencode_util.c extras/ambencode_util.h  ambencode.h
+	$(CC) -c -o extras/ambencode_util.o extras/ambencode_util.c $(CFLAGS)
+
+extras/ambencode_dump.o: extras/ambencode_dump.c extras/ambencode_dump.h ambencode.h
+	$(CC) -c -o extras/ambencode_dump.o extras/ambencode_dump.c $(CFLAGS)
+
+extras/ambencode_file.o: extras/ambencode_file.c extras/ambencode_file.h ambencode.h
+	$(CC) -c -o extras/ambencode_file.o extras/ambencode_file.c $(CFLAGS)
+
+extras/ambencode_query.o: extras/ambencode_query.c extras/ambencode_query.h extras/ambencode_util.h ambencode.h
+	$(CC) -c -o extras/ambencode_query.o extras/ambencode_query.c $(CFLAGS)
+
+extras/ambencode_main.o: extras/ambencode_main.c ambencode.h extras/ambencode_file.h extras/ambencode_dump.h extras/ambencode_query.h extras/ambencode_util.h
+	$(CC) -c -o extras/ambencode_main.o extras/ambencode_main.c $(C99CFLAGS)
+
+ambencode: ambencode.o extras/ambencode_util.o extras/ambencode_dump.o extras/ambencode_file.o extras/ambencode_query.o extras/ambencode_main.o
+	$(CC) -o ambencode ambencode.o extras/ambencode_util.o extras/ambencode_dump.o extras/ambencode_file.o extras/ambencode_query.o extras/ambencode_main.o $(CFLAGS)
+
+examples/example1.o: ambencode.o examples/example1.c
+	$(CC) -c -o examples/example1.o examples/example1.c $(CFLAGS)
 
 examples/example1: ambencode.o examples/example1.o extras/ambencode_dump.o
-	$(CC) -o $@ $^ $(CFLAGS)
+	$(CC) -o examples/example1 ambencode.o examples/example1.o extras/ambencode_dump.o $(CFLAGS)
 
-examples/example3: ambencode.o examples/example3.o extras/ambencode_dump.o extras/ambencode_util.o extras/ambencode_query.o
-	$(CC) -o $@ $^ $(CFLAGS)
+examples/example3.o: ambencode.o examples/example3.c
+	$(CC) -c -o examples/example3.o examples/example3.c $(CFLAGS)
+
+examples/example3: ambencode.o examples/example3.o extras/ambencode_dump.o extras/ambencode_query.o extras/ambencode_util.o
+	$(CC) -o examples/example3 ambencode.o examples/example3.o extras/ambencode_dump.o extras/ambencode_query.o extras/ambencode_util.o $(CFLAGS)
 
 .PHONY: clean
 
 clean:
-	rm -f ambencode ambencode.o extras/ambencode_dump.o extras/ambencode_file.o \
-              extras/ambencode_util.o extras/ambencode_query.o \
-              extras/ambencode_main.o examples/example1 examples/example3 \
-              examples/example1.o 
+	rm -f ambencode ambencode.o extras/ambencode_util.o extras/ambencode_dump.o extras/ambencode_file.o \
+              extras/ambencode_query.o extras/ambencode_main.o examples/example1 \
+              examples/example1.o examples/example3 examples/example3.o 
 
 ## --------------------------------------------------------------------
 ## --------------------------------------------------------------------

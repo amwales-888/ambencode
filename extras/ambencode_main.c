@@ -203,7 +203,7 @@ int main(int argc, char **argv) {
       
       if (ambencode_decode(&bhandle, mhandle.buf, mhandle.len) == 0) {
 	
-	fprintf(stdout, "BENCODE valid [file:%s size:%ld bobject:%d p:%ld]\n", 
+	fprintf(stdout, "BENCODE valid [file:%s size:%d bobject:%d p:%d]\n", 
 		filepath, 
 		bhandle.len,
 		bhandle.used,

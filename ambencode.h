@@ -48,12 +48,16 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 /* -------------------------------------------------------------------- */
 
-#define AMBENCODE_MAXDEPTH 64        /* Set the maximum depth we will allow
+#define AMBENCODE_MAXDEPTH 64     /* Set the maximum depth we will allow
 				   * lists and disctions to descend. Since we
 				   * use a recursive descent parser this is 
 				   * also affects the maximum stack depth used.
 				   * You may lower this number but it will affect 
 				   * the maximum nesting of your BENCODE objects */
+
+#define AMBENCODE_12              /* 32bit offsets ( see table** ) */
+/* #define AMBENCODE_6 */         /* 16bit offsets ( see table** ) */
+/* #define AMBENCODE_3 */         /*  8bit offsets ( see table** ) */
 
 /* #define AMBIGBENCODE */           /* Set string offset to use 'unsigned long',
 				   * on 64 bit Linux platforms, this will allow 
@@ -61,6 +65,10 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 				   * downside of this is that every bobject will 
 				   * now consume 16bytes instead of 12bytes on a 
 				   * 64 bit platform */
+
+/* #define USECOMPUTEDGOTO */     /* Use GCC extension for computed gotos */
+/* #define USEBRANCHHINTS */      /* Use hints to aid branch prediction */
+
 
 /* -------------------------------------------------------------------- *
 
@@ -93,68 +101,76 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
   Linux and MacOS X LP64, Windows LLP64 
 
-                          AMBENCODE_8 AMBENCODE_16 AMBENCODE_32     
-  MAX Array Entries       31       8191      536870911
-  MAX Object Entries*     15       4095      268435455   *( Key/Value Pairs )
-  MAX String Length       15       4095      268435455
-  MAX Number Length       15       4095      268435455
-  MAX Jobect Pool Size    255      65535     4294967295
-  Max BENCODE Buffer Length  255      65535     4294967295
-  Size of Bobject         3 Bytes  6 Bytes   12 Bytes
+  **                        AMBENCODE_3 AMBENCODE_6   AMBENCODE_12     
+  MAX Array Entries         63          16383         1073741823
+  MAX Object Entries*       31          8191          536870911   *( Key/Value Pairs )
+  MAX String Length         63          16383         1073741823
+  MAX Number Length         63          16383         1073741823
+  MAX Jobect Pool Size      255         65535         4294967295
+  Max BENCODE Buffer Length 255         65535         4294967295
+  Size of Jobject           3 Bytes     6 Bytes       12 Bytes
+
+  When AMBIGBENCODE is defined the addressable BENCODE Buffer length 
+  is increased
+                               AMBENCODE_3 AMBENCODE_6   AMBENCODE_12
+  Max BENCODE Buffer Length    65535       4294967295    (2^64)-1
+  Size of Jobject AMBIGBENCODE 4 Bytes     8 Bytes       16 Bytes
 
  * -------------------------------------------------------------------- */
 
-#define AMBENCODE_32
-/* #define AMBENCODE_16 */
-/* #define AMBENCODE_8  */
-
-#ifdef AMBENCODE_32
+#ifdef AMBENCODE_12
 typedef uint32_t bsize_t;
 typedef uint32_t poff_t;
 #define BSIZE_MAX       UINT32_MAX
 #define POFF_MAX        UINT32_MAX
-#define AMBENCODE_TYPEBITS 3
-#define AMBENCODE_LENBITS  29
+#define AMBENCODE_TYPEBITS 2
+#define AMBENCODE_LENBITS  30
 
 #ifdef AMBIGBENCODE
+typedef uint64_t xbsize_t;     
 typedef uint64_t xboff_t;     /* Offset of character into BENCODE buffer */
 #define XBOFF_MAX        UINT64_MAX 
 #else
+typedef uint32_t xbsize_t;     
 typedef uint32_t xboff_t;
 #define XBOFF_MAX        UINT32_MAX
 #endif
 #endif
 
-#ifdef AMBENCODE_16
+#ifdef AMBENCODE_6
 typedef uint16_t bsize_t;
 typedef uint16_t poff_t;
 #define BSIZE_MAX       UINT16_MAX
 #define POFF_MAX        UINT16_MAX
-#define AMBENCODE_TYPEBITS 3
-#define AMBENCODE_LENBITS  13
+#define AMBENCODE_TYPEBITS 2
+#define AMBENCODE_LENBITS  14
 
 #ifdef AMBIGBENCODE
+typedef uint32_t xbsize_t;     
 typedef uint32_t xboff_t;
 #define XBOFF_MAX        UINT32_MAX
 #else
+typedef uint16_t xbsize_t;     
 typedef uint16_t xboff_t;
 #define XBOFF_MAX        UINT16_MAX
 #endif
 #endif
 
-#ifdef AMBENCODE_8
+#ifdef AMBENCODE_3
 typedef uint8_t bsize_t;
 typedef uint8_t poff_t;
 #define BSIZE_MAX       UINT8_MAX
 #define POFF_MAX        UINT8_MAX
 
-#define AMBENCODE_TYPEBITS 3
-#define AMBENCODE_LENBITS  5
+#define AMBENCODE_TYPEBITS 2
+#define AMBENCODE_LENBITS  6
 
 #ifdef AMBIGBENCODE
+typedef uint16_t xbsize_t;     
 typedef uint16_t xboff_t;
 #define XBOFF_MAX        UINT16_MAX
 #else
+typedef uint8_t xbsize_t;     
 typedef uint8_t xboff_t;
 #define XBOFF_MAX        UINT8_MAX
 #endif
@@ -176,14 +192,10 @@ typedef uint8_t xboff_t;
 
 struct bobject {
 
-#define AMBENCODE_UNDEFINED  0 
-#define AMBENCODE_DICTIONARY 1
-#define AMBENCODE_LIST       2 
-#define AMBENCODE_STRING     3 
-#define AMBENCODE_NUMBER     4 
-
-#define AMBENCODE_INVALID    0    /* Next offset use as value indicating 
-                                   * end of list */
+#define AMBENCODE_DICTIONARY 0
+#define AMBENCODE_LIST       1 
+#define AMBENCODE_STRING     2 
+#define AMBENCODE_NUMBER     3 
 
   bsize_t blen;                   /* type:len packed BENCODE_TYPEBITS 
                                    * and AMBENCODE_LENBITS */
@@ -198,19 +210,22 @@ struct bobject {
     } string;
   } u;
 
+#define AMBENCODE_INVALID    0    /* Next offset use as value indicating 
+                                   * end of list */
+
   poff_t next;                    /* next offset into bobject pool */
 
 } __attribute__((packed));
 
 struct bhandle {
 
-  unsigned int   userbuffer:1;    /* Did user supply the buffer? */
-  unsigned int   useljmp:1;       /* We want to longjmp on allocation failure */
-
   char           *buf;            /* Unparsed json data, the BENCODE buffer */
   char           *eptr;           /* Pointer to character after the end of 
                                    * the BENCODE buffer */
-  size_t         len;             /* Length of json data */  
+  unsigned int   userbuffer:1;    /* Did user supply the buffer? */
+  unsigned int   useljmp:1;       /* We want to longjmp on allocation failure */
+
+  xbsize_t       len;             /* Length of json data */  
   jmp_buf        setjmp_ctx;      /* Allows us to return from allocation failure 
 				   * from deeply nested calls */
   
@@ -295,7 +310,7 @@ int ambencode_alloc(struct bhandle *bhandle, struct bobject *ptr, poff_t count);
  * the BENCODE buffer. ENOMEM indicates a problem allocating an object from
  * the bobject pool.
  */
-int ambencode_decode(struct bhandle *bhandle, char *buf, bsize_t len);
+int ambencode_decode(struct bhandle *bhandle, char *buf, xbsize_t len);
 
 /* Summary: Release any resources held by an initialised ambencode context.
  * bhandle: This is a pointer to an initialised bhandle structure.
