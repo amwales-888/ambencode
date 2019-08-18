@@ -10,7 +10,7 @@ int ambencode_alloc(struct bhandle *bhandle,
                     struct bobject *ptr, poff_t count);
 
 int ambencode_decode(struct bhandle *bhandle, 
-                  char *buf, bsize_t len);
+                     char *buf, xbsize_t len);
 	
 void ambencode_free(struct bhandle *bhandle);
 ```
