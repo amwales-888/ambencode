@@ -47,6 +47,9 @@ extras/ambencode_query.o: extras/ambencode_query.c extras/ambencode_query.h extr
 extras/ambencode_mod.o: extras/ambencode_mod.c extras/ambencode_mod.h ambencode.h
 	$(CC) -c -o extras/ambencode_mod.o extras/ambencode_mod.c $(CFLAGS)
 
+extras/ambencode_number.o: extras/ambencode_number.c extras/ambencode_number.h ambencode.h
+	$(CC) -c -o extras/ambencode_number.o extras/ambencode_number.c $(CFLAGS)
+
 extras/ambencode_main.o: extras/ambencode_main.c ambencode.h extras/ambencode_file.h extras/ambencode_dump.h extras/ambencode_query.h extras/ambencode_util.h
 	$(CC) -c -o extras/ambencode_main.o extras/ambencode_main.c $(C99CFLAGS)
 

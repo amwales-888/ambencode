@@ -100,17 +100,14 @@ struct bobject *ambencode_query(struct bhandle *bhandle,
     nptr = query_index(ptr);
     if (nptr == ptr) {
       nptr = query_identifier(ptr);
-      if (nptr == ptr) {
-	goto fail;
-      } else {
+      if (nptr == ptr) goto fail;
+      if (BOBJECT_TYPE(bobject) != AMBENCODE_DICTIONARY) goto fail;       	
 
-	if (BOBJECT_TYPE(bobject) != AMBENCODE_DICTIONARY) goto fail;       	
-	bobject = ambencode_object_find(bhandle, bobject, ptr, (nptr - ptr));
-	if (!bobject) goto fail;    
-
-	ptr = nptr;
-	if (*ptr == '\0') goto success;
-      }
+      bobject = ambencode_object_find(bhandle, bobject, ptr, (nptr - ptr));
+      if (!bobject) goto fail;    
+      
+      ptr = nptr;
+      if (*ptr == '\0') goto success;
     } else {
       int index = 0;
       
@@ -129,14 +126,13 @@ struct bobject *ambencode_query(struct bhandle *bhandle,
       if (!bobject) goto fail;    
 
       if (*ptr == '\0') goto success;
-
-      if ((*ptr != '.') &&
-	  (*ptr != '['))
-	goto fail;
-
-      if (*ptr == '.') ptr++;      
     }
+
+    if ((*ptr != '.') &&
+	(*ptr != '['))
+      goto fail;
     
+    if (*ptr == '.') ptr++;      
   }
 
  success:
