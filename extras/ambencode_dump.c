@@ -23,8 +23,10 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
  * -------------------------------------------------------------------- */
 
+#include <unistd.h>
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 
 #include "ambencode.h"
 #include "extras/ambencode_dump.h"
@@ -75,20 +77,39 @@ static void dump_spaces(int depth, size_t *written, char *buf, size_t len) {
 static size_t cpyout(char *dst, size_t dlen, char *src, size_t slen, 
 		     size_t offset) {
 
-  size_t towrite   = 0;
-  size_t available = 0;
+  if (dst == (char *)0) {
 
-  if (dst == (char *)0) return printf("%.*s", (int)slen, src);
+    ssize_t written;
+    size_t towrite = slen;
+    char *ptr = src;
 
-  if (offset < dlen) {
-    available = dlen - offset;
 
-    towrite = slen;
-    if (towrite > available) {
-      towrite = available;
+    while (towrite) {
+
+      do {
+	written = write(1, ptr, towrite);
+      } while ((written == -1) && (errno == EINTR));
+      
+      if (written == -1) return slen;
+
+      towrite -= written;
+      ptr     += written;
     }
+    
+  } else {
 
-    if (towrite > 0) memcpy(&dst[offset], src, towrite);
+    if (offset < dlen) {
+      
+      size_t towrite   = 0;
+      size_t available = dlen - offset;
+      
+      towrite = slen;
+      if (towrite > available) {
+	towrite = available;
+      }
+      
+      if (towrite > 0) memcpy(&dst[offset], src, towrite);
+    }
   }
 
   return slen;
