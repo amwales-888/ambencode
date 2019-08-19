@@ -224,7 +224,6 @@ size_t ambencode_dump_json(struct bhandle *bhandle, struct bobject *bobject,
   
   dump_json(bhandle, bobject, BOBJECT_TYPE(bobject), 0, pretty, &written, buf, len);
 
-  written += cpyout(buf, len, "\n", 1, written);
   return written;
 }
 
@@ -239,7 +238,6 @@ size_t ambencode_dump(struct bhandle *bhandle, struct bobject *bobject,
   
   dump(bhandle, bobject, BOBJECT_TYPE(bobject), 0, pretty, &written, buf, len);
 
-  written += cpyout(buf, len, "\n", 1, written);
   return written;
 }
 

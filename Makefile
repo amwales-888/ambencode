@@ -27,7 +27,7 @@ CC=gcc
 CFLAGS=-I. -I./extras -O3 -Wall -Wextra -fomit-frame-pointer -march=native -mtune=native -std=c89
 C99CFLAGS=-I. -I./extras -O3 -Wall -Wextra -fomit-frame-pointer -march=native -mtune=native -D_GNU_SOURCE -std=c99 
 
-all: ambencode examples/example1 examples/example3 
+all: ambencode examples/example1 examples/example3 examples/example5
 
 ambencode.o: ambencode.c ambencode.h
 	$(CC) -c -o ambencode.o ambencode.c $(CFLAGS)
@@ -43,6 +43,9 @@ extras/ambencode_file.o: extras/ambencode_file.c extras/ambencode_file.h ambenco
 
 extras/ambencode_query.o: extras/ambencode_query.c extras/ambencode_query.h extras/ambencode_util.h ambencode.h
 	$(CC) -c -o extras/ambencode_query.o extras/ambencode_query.c $(CFLAGS)
+
+extras/ambencode_mod.o: extras/ambencode_mod.c extras/ambencode_mod.h ambencode.h
+	$(CC) -c -o extras/ambencode_mod.o extras/ambencode_mod.c $(CFLAGS)
 
 extras/ambencode_main.o: extras/ambencode_main.c ambencode.h extras/ambencode_file.h extras/ambencode_dump.h extras/ambencode_query.h extras/ambencode_util.h
 	$(CC) -c -o extras/ambencode_main.o extras/ambencode_main.c $(C99CFLAGS)
@@ -62,12 +65,19 @@ examples/example3.o: ambencode.o examples/example3.c
 examples/example3: ambencode.o examples/example3.o extras/ambencode_dump.o extras/ambencode_query.o extras/ambencode_util.o
 	$(CC) -o examples/example3 ambencode.o examples/example3.o extras/ambencode_dump.o extras/ambencode_query.o extras/ambencode_util.o $(CFLAGS)
 
+examples/example5.o: ambencode.o examples/example5.c
+	$(CC) -c -o examples/example5.o examples/example5.c $(CFLAGS)
+
+examples/example5: ambencode.o examples/example5.o extras/ambencode_dump.o extras/ambencode_query.o extras/ambencode_util.o extras/ambencode_mod.o
+	$(CC) -o examples/example5 ambencode.o examples/example5.o extras/ambencode_dump.o extras/ambencode_query.o extras/ambencode_util.o extras/ambencode_mod.o $(CFLAGS)
+
 .PHONY: clean
 
 clean:
 	rm -f ambencode ambencode.o extras/ambencode_util.o extras/ambencode_dump.o extras/ambencode_file.o \
               extras/ambencode_query.o extras/ambencode_main.o examples/example1 \
-              examples/example1.o examples/example3 examples/example3.o 
+              examples/example1.o examples/example3 examples/example3.o \
+              examples/example5 examples/example5.o 
 
 ## --------------------------------------------------------------------
 ## --------------------------------------------------------------------
