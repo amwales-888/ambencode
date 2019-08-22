@@ -260,10 +260,9 @@ struct bhandle {
 #define LIST_NEXT(bhandle, o)         ((((o)->next) == AMBENCODE_INVALID)?(struct bobject *)0:(BOBJECT_AT((bhandle), ((o)->next))))
 #define DICTIONARY_COUNT(o)                ((o)->blen & AMBENCODE_LENMASK)
 #define DICTIONARY_FIRST_KEY(bhandle, o)   ((((o)->blen & AMBENCODE_LENMASK) == 0)?(struct bobject *)0:(BOBJECT_AT((bhandle),(o)->u.object.child)))
-#define DICTIONARY_NEXT_KEY(bhandle, o)    ((((o)->next) == AMBENCODE_INVALID)?(struct bobject *)0:BOBJECT_AT((bhandle),BOBJECT_AT((bhandle), ((o)->next))->next))
+#define DICTIONARY_NEXT_KEY(bhandle, o)    ((((o)->next) == AMBENCODE_INVALID)?(struct bobject *)0:((BOBJECT_AT((bhandle), ((o)->next))->next == AMBENCODE_INVALID)?(struct bobject *)0:BOBJECT_AT((bhandle),BOBJECT_AT((bhandle), ((o)->next))->next)))
 #define DICTIONARY_FIRST_VALUE(bhandle, o) ((((o)->blen & AMBENCODE_LENMASK) == 0)?(struct bobject *)0:BOBJECT_AT((bhandle), BOBJECT_AT((bhandle), (o)->u.object.child)->next))
-#define DICTIONARY_NEXT_VALUE(bhandle, o)  ((((o)->next) == AMBENCODE_INVALID)?(struct bobject *)0:BOBJECT_AT((bhandle),BOBJECT_AT((bhandle), ((o)->next))->next))
-
+#define DICTIONARY_NEXT_VALUE(bhandle, o)    ((((o)->next) == AMBENCODE_INVALID)?(struct bobject *)0:((BOBJECT_AT((bhandle), ((o)->next))->next == AMBENCODE_INVALID)?(struct bobject *)0:BOBJECT_AT((bhandle),BOBJECT_AT((bhandle), ((o)->next))->next)))
 #define BOBJECT_STRDUP(o)              ((BOBJECT_TYPE((o)) != AMBENCODE_STRING)?((struct bobject *)0):strndup(BOBJECT_STRING_PTR((o)),BOBJECT_STRING_LEN((o))))
 
 #define BOBJECT_P                      6
